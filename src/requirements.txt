@@ -1,0 +1,7 @@
+# Pinned for Lambda (Python 3.12) and local macOS (Python 3.13) with prebuilt wheels.
+fastapi==0.115.6
+mangum==0.19.0
+uvicorn[standard]==0.32.1
+pydantic==2.11.7
+pydantic-settings==2.10.1
+asyncpg==0.30.0

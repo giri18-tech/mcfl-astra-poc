@@ -1,0 +1,27 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: us-east-1
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - python -m pip install --upgrade pip
+      - pip install "aws-sam-cli>=1.120.0,<2"
+  build:
+    commands:
+      - sam build --template-file template.yml --region "$AWS_REGION"
+      - |
+        sam package \
+          --template-file .aws-sam/build/template.yaml \
+          --s3-bucket "$ARTIFACT_BUCKET" \
+          --s3-prefix "$ARTIFACT_PREFIX" \
+          --region "$AWS_REGION" \
+          --output-template-file packaged-template.yaml
+artifacts:
+  files:
+    - packaged-template.yaml
+  name: litigation-api-build
