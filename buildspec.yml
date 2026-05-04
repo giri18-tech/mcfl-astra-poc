@@ -52,7 +52,11 @@ phases:
             --capabilities CAPABILITY_NAMED_IAM \
             --region "$AWS_REGION" \
             --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              DbPassword="$DB_PASSWORD" \
+              VpcSubnetIds="$VPC_SUBNET_IDS" \
+              VpcSecurityGroupIds="$VPC_SG_IDS"
         else
           echo "SAM_DEPLOY=false — skipping deploy, artifact ready for manual deployment."
         fi

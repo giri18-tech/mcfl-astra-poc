@@ -21,23 +21,30 @@ Parameters:
     Default: ""
     Description: Comma-separated security group IDs (outbound TCP 1433 required)
 
-  # --- DB config from SSM Parameter Store (resolved at deploy time) ----------
-  # Pre-create with: aws ssm put-parameter --name /litigation-api/db-host --value "OEG-WXCASSQL203" --type String
+  # --- DB connection parameters -----------------------------------------------
+  # Pass values via samconfig.toml parameter_overrides or --parameter-overrides
+  # on the CLI. DbPassword is marked NoEcho so it never appears in console logs.
   DbHost:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /litigation-api/db-host
+    Type: String
+    Default: "OEG-WXCASSQL203"
 
   DbPort:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /litigation-api/db-port
+    Type: String
+    Default: "1433"
 
   DbName:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /litigation-api/db-name
+    Type: String
+    Default: "LitigationTracking_QA"
 
   DbUser:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /litigation-api/db-user
+    Type: String
+    Default: "astra"
+
+  DbPassword:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: SQL Server password (stored as Lambda env var — upgrade to Secrets Manager when permissions allow)
 
   # --- Log retention ----------------------------------------------------------
   LogRetentionDays:
@@ -88,16 +95,8 @@ Resources:
           - HasVpc
           - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
           - !Ref AWS::NoValue
-      Policies:
-        # Allows Lambda to fetch secrets at runtime if code is updated to use boto3.
-        # Currently DB_PASSWORD is injected via Secrets Manager dynamic reference at deploy time.
-        - PolicyName: SecretsManagerRead
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:litigation-api/*
+      # TODO: when your role gets secretsmanager:CreateSecret permission, store
+      # DbPassword in Secrets Manager and add a SecretsManagerRead policy here.
 
   # --- CloudWatch Log Groups -------------------------------------------------
   # Explicit resource ensures retention policy is applied even before first invocation.
@@ -159,11 +158,7 @@ Resources:
           DB_PORT: !Ref DbPort
           DB_NAME: !Ref DbName
           DB_USER: !Ref DbUser
-          # DB_PASSWORD resolved from Secrets Manager at deploy time.
-          # Pre-create: aws secretsmanager create-secret \
-          #   --name litigation-api/db-password \
-          #   --secret-string '{"password":"YOUR_PASSWORD_HERE"}'
-          DB_PASSWORD: "{{resolve:secretsmanager:litigation-api/db-password:SecretString:password}}"
+          DB_PASSWORD: !Ref DbPassword
           LOG_LEVEL: INFO
       Events:
         # Root path (e.g. GET /)

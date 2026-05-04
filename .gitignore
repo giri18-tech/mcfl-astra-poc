@@ -16,6 +16,10 @@ venv/
 packaged-template.yaml
 samconfig.toml.bak
 
+# samconfig.toml contains DbPassword — do not commit with real password.
+# Commit only when DbPassword=REPLACE_WITH_REAL_PASSWORD (placeholder).
+# Better: pass password at deploy time via --parameter-overrides.
+
 # macOS
 .DS_Store
 

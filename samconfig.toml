@@ -19,26 +19,21 @@ s3_prefix         = "litigation-api-poc"
 
 # CloudFormation parameter overrides.
 # ---------------------------------------------------------------------------
-# SSM paths: create each parameter before first deploy, e.g.:
-#   aws ssm put-parameter --name /litigation-api/db-host --value "OEG-WXCASSQL203" --type String
-#   aws ssm put-parameter --name /litigation-api/db-port --value "1433"            --type String
-#   aws ssm put-parameter --name /litigation-api/db-name --value "LitigationTracking_QA" --type String
-#   aws ssm put-parameter --name /litigation-api/db-user --value "astra"           --type String
-#
-# Secrets Manager: create the DB password secret before first deploy:
-#   aws secretsmanager create-secret \
-#     --name litigation-api/db-password \
-#     --secret-string '{"password":"YOUR_PASSWORD_HERE"}'
+# DbPassword: fill in the real password value here.
+# This file must NOT be committed with a real password — keep it in .gitignore
+# or pass the password at deploy time:
+#   sam deploy --parameter-overrides DbPassword=YOUR_PASSWORD
 #
 # VPC: fill in subnet and security group IDs to connect Lambda to the SQL
 # Server over Direct Connect or Site-to-Site VPN.  Leave blank to deploy
 # without VPC (DB falls back to mock data).
 # ---------------------------------------------------------------------------
 parameter_overrides = [
-  "DbHost=/litigation-api/db-host",
-  "DbPort=/litigation-api/db-port",
-  "DbName=/litigation-api/db-name",
-  "DbUser=/litigation-api/db-user",
+  "DbHost=OEG-WXCASSQL203",
+  "DbPort=1433",
+  "DbName=LitigationTracking_QA",
+  "DbUser=astra",
+  # DbPassword intentionally omitted — set DB_PASSWORD env var in CodeBuild project settings.
   "LogRetentionDays=30",
   "VpcSubnetIds=",
   "VpcSecurityGroupIds=",
