@@ -1,12 +1,45 @@
 version = 0.1
 
+# ---------------------------------------------------------------------------
+# sam build
+# ---------------------------------------------------------------------------
 [default.build.parameters]
 template = "template.yml"
 
+# ---------------------------------------------------------------------------
+# sam deploy  (local / manual deployments via `sam deploy --guided` or CLI)
+# ---------------------------------------------------------------------------
 [default.deploy.parameters]
-stack_name = "litigation-api-poc"
-region = "us-east-1"
-capabilities = "CAPABILITY_IAM"
+stack_name        = "litigation-api-poc"
+region            = "us-east-1"
+capabilities      = "CAPABILITY_NAMED_IAM"
 confirm_changeset = false
-resolve_s3 = true
-s3_prefix = "litigation-api-poc"
+resolve_s3        = true
+s3_prefix         = "litigation-api-poc"
+
+# CloudFormation parameter overrides.
+# ---------------------------------------------------------------------------
+# SSM paths: create each parameter before first deploy, e.g.:
+#   aws ssm put-parameter --name /litigation-api/db-host --value "OEG-WXCASSQL203" --type String
+#   aws ssm put-parameter --name /litigation-api/db-port --value "1433"            --type String
+#   aws ssm put-parameter --name /litigation-api/db-name --value "LitigationTracking_QA" --type String
+#   aws ssm put-parameter --name /litigation-api/db-user --value "astra"           --type String
+#
+# Secrets Manager: create the DB password secret before first deploy:
+#   aws secretsmanager create-secret \
+#     --name litigation-api/db-password \
+#     --secret-string '{"password":"YOUR_PASSWORD_HERE"}'
+#
+# VPC: fill in subnet and security group IDs to connect Lambda to the SQL
+# Server over Direct Connect or Site-to-Site VPN.  Leave blank to deploy
+# without VPC (DB falls back to mock data).
+# ---------------------------------------------------------------------------
+parameter_overrides = [
+  "DbHost=/litigation-api/db-host",
+  "DbPort=/litigation-api/db-port",
+  "DbName=/litigation-api/db-name",
+  "DbUser=/litigation-api/db-user",
+  "LogRetentionDays=30",
+  "VpcSubnetIds=",
+  "VpcSecurityGroupIds=",
+]

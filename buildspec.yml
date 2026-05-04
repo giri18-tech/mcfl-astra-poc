@@ -1,9 +1,20 @@
 version: 0.2
 
+# ---------------------------------------------------------------------------
+# Environment variables
+# ---------------------------------------------------------------------------
+# ARTIFACT_BUCKET and ARTIFACT_PREFIX are injected by CodePipeline.
+# All other variables can be overridden in the CodeBuild project settings.
 env:
   variables:
     AWS_REGION: us-east-1
+    STACK_NAME: litigation-api-poc
+    # Set to "false" to skip deploy (e.g. in PR / feature-branch builds).
+    SAM_DEPLOY: "true"
 
+# ---------------------------------------------------------------------------
+# Phases
+# ---------------------------------------------------------------------------
 phases:
   install:
     runtime-versions:
@@ -11,6 +22,12 @@ phases:
     commands:
       - python -m pip install --upgrade pip
       - pip install "aws-sam-cli>=1.120.0,<2"
+
+  pre_build:
+    commands:
+      # Validate the SAM template before building — catches YAML / CloudFormation errors early.
+      - sam validate --template-file template.yml --region "$AWS_REGION"
+
   build:
     commands:
       - sam build --template-file template.yml --region "$AWS_REGION"
@@ -21,6 +38,32 @@ phases:
           --s3-prefix "$ARTIFACT_PREFIX" \
           --region "$AWS_REGION" \
           --output-template-file packaged-template.yaml
+
+  post_build:
+    commands:
+      # Deploy only when SAM_DEPLOY=true (skip on PR/feature-branch builds).
+      # The CodeBuild IAM role must have CloudFormation and IAM permissions.
+      - |
+        if [ "$SAM_DEPLOY" = "true" ]; then
+          echo "Deploying stack: $STACK_NAME"
+          sam deploy \
+            --template-file packaged-template.yaml \
+            --stack-name "$STACK_NAME" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region "$AWS_REGION" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
+        else
+          echo "SAM_DEPLOY=false — skipping deploy, artifact ready for manual deployment."
+        fi
+
+# ---------------------------------------------------------------------------
+# Artifacts
+# ---------------------------------------------------------------------------
+# packaged-template.yaml is the CloudFormation-ready template (Lambda code
+# uploaded to S3, all local URIs replaced with S3 URIs).
+# If SAM_DEPLOY=false (CodePipeline flow), a downstream CloudFormation deploy
+# action consumes this artifact.
 artifacts:
   files:
     - packaged-template.yaml

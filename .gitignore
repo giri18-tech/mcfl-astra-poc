@@ -1,0 +1,25 @@
+# Secrets — never commit
+src/.env
+*.env
+!src/dev.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# SAM build output
+.aws-sam/
+packaged-template.yaml
+samconfig.toml.bak
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.iml
