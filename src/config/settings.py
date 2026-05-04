@@ -9,14 +9,16 @@ class Settings(BaseSettings):
     APP_NAME: str = "litigation-api"
     LOG_LEVEL: str = "INFO"
 
-    # Aurora / PostgreSQL — used only when reachable; otherwise the API returns mocks.
+    # SQL Server — pymssql ships FreeTDS in its wheel; no ODBC driver required.
+    # In Lambda these are set from SSM / Secrets Manager via the SAM template.
+    # For local dev, create src/.env (see src/dev.env for a template).
     DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_NAME: str = "litigation"
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = "postgres"
-    DB_SSL: str = "disable"
-    DB_CONNECT_TIMEOUT_SECONDS: float = 2.0
+    DB_PORT: int = 1433
+    DB_NAME: str = "LitigationTracking_QA"
+    DB_USER: str = "astra"
+    # No default — must be supplied via env var or .env file.
+    DB_PASSWORD: str
+    DB_CONNECT_TIMEOUT_SECONDS: float = 5.0
 
 
 settings = Settings()

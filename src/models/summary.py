@@ -7,4 +7,4 @@ class Summary(BaseModel):
     totalCases: int
     totalFederal: int
     totalState: int
-    mostRecentFilingDate: str
+    mostRecentFilingDate: str | None = None

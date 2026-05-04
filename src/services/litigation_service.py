@@ -1,8 +1,11 @@
 """
 Litigation use-cases.
 
-`LitigationRepository` owns I/O (Postgres when ready, otherwise mocks).
-This layer only shapes responses: list + pagination for search, pass-through for get-by-id.
+`LitigationRepository` owns I/O (SQL Server when reachable, otherwise mocks).
+This layer shapes responses: pagination envelope for search, pass-through for get-by-id.
+
+Pagination is pushed to SQL in the repository — the service never slices case lists.
+`summary.totalCases` is the unfiltered total used to compute `next_page`.
 """
 
 from __future__ import annotations
@@ -35,9 +38,11 @@ class LitigationService:
             date_from=date_from,
             date_to=date_to,
             harm_type=harm_type,
+            limit=limit,
+            offset=offset,
         )
-        summary, company, all_cases = await self._repository.fetch_litigation_bundle(query)
-        page = all_cases[offset : offset + limit]
+        summary, company, cases = await self._repository.fetch_litigation_bundle(query)
+        # cases is already paginated by SQL (or by mock slicing) — no Python slicing here
         total = summary.totalCases
         next_page = self._build_next_page(
             orbis_id=orbis_id,
@@ -57,7 +62,7 @@ class LitigationService:
         return LitigationResponse(
             summary=summary,
             company=company,
-            cases=page,
+            cases=cases,
             pagination=pagination,
         )
 

@@ -1,57 +1,56 @@
 """
-asyncpg pool for Aurora/PostgreSQL.
+pymssql connection for SQL Server.
 
-The API remains usable without a live database: callers probe connectivity
-with `ping_postgres()` and fall back to mock payloads when appropriate.
+pymssql ships FreeTDS statically linked in its PyPI wheel — no ODBC driver or Lambda
+layer required. Synchronous FreeTDS calls are dispatched via run_in_executor so the
+event loop stays unblocked between requests.
 """
 
 from __future__ import annotations
 
 import asyncio
-import ssl
+from functools import partial
 from typing import Optional
 
-import asyncpg
+import pymssql
 
 from config.settings import settings
 
-# Process-wide pool; Lambda reuse benefits from a single warm pool per execution environment.
-_pool: Optional[asyncpg.Pool] = None
+# Single persistent connection per Lambda execution environment.
+# Lambda handles one request at a time per instance, so one connection is sufficient.
+_conn: Optional[pymssql.Connection] = None
 
 
-def _ssl_context() -> ssl.SSLContext | None:
-    """Aurora typically requires TLS; local dev often runs without it."""
-    if settings.DB_SSL.lower() in ("require", "true", "1"):
-        return ssl.create_default_context()
-    return None
+def _new_connection() -> pymssql.Connection:
+    return pymssql.connect(
+        server=settings.DB_HOST,
+        port=str(settings.DB_PORT),
+        database=settings.DB_NAME,
+        user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+        login_timeout=max(1, int(settings.DB_CONNECT_TIMEOUT_SECONDS)),
+    )
 
 
-async def get_pool() -> asyncpg.Pool:
-    """Lazily construct (or return) the asyncpg pool."""
-    global _pool
-    if _pool is None:
-        _pool = await asyncpg.create_pool(
-            host=settings.DB_HOST,
-            port=settings.DB_PORT,
-            database=settings.DB_NAME,
-            user=settings.DB_USER,
-            password=settings.DB_PASSWORD,
-            ssl=_ssl_context(),
-            min_size=1,
-            max_size=2,
-        )
-    return _pool
+async def get_connection() -> pymssql.Connection:
+    """Lazily open (or return) the persistent connection."""
+    global _conn
+    if _conn is None:
+        loop = asyncio.get_event_loop()
+        _conn = await loop.run_in_executor(None, _new_connection)
+    return _conn
 
 
-async def close_pool() -> None:
-    """Close the pool (e.g. after a failed health check so the next call can retry)."""
-    global _pool
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
+async def close_connection() -> None:
+    """Close and clear the connection so the next call reconnects cleanly."""
+    global _conn
+    if _conn is not None:
+        conn, _conn = _conn, None
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, conn.close)
 
 
-async def ping_postgres() -> bool:
+async def ping_db() -> bool:
     """
     Return True only if we can open a connection and run a trivial query.
 
@@ -59,10 +58,18 @@ async def ping_postgres() -> bool:
     can serve the mock litigation contract instead of erroring.
     """
     try:
-        pool = await asyncio.wait_for(get_pool(), timeout=settings.DB_CONNECT_TIMEOUT_SECONDS)
-        async with pool.acquire() as conn:
-            value = await conn.fetchval("SELECT 1")
-            return value == 1
+        conn = await asyncio.wait_for(
+            get_connection(), timeout=settings.DB_CONNECT_TIMEOUT_SECONDS
+        )
+
+        def _check(c: pymssql.Connection) -> bool:
+            with c.cursor() as cur:
+                cur.execute("SELECT 1")
+                row = cur.fetchone()
+                return row is not None and row[0] == 1
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, partial(_check, conn))
     except Exception:
-        await close_pool()
+        await close_connection()
         return False
